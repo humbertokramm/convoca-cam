@@ -390,6 +390,33 @@ equivalentes:
 
 ---
 
+## 18. Árbitro aparece com nome completo
+
+**Decidido em 2026-09-07 pelo dono do projeto, depois de a alternativa ser
+oferecida.**
+
+A ficha de abertura mostra o nome completo dos árbitros, como cadastrado na
+súmula. Não é omissão: a questão foi levantada e a escolha foi esta.
+
+Fica registrada a assimetria, porque ela é deliberada dos dois lados:
+
+| | como aparece | por quê |
+|---|---|---|
+| Atletas | apelido ou primeiro nome | migration 091 do AVF, que existiu para corrigir nomes completos publicados por engano |
+| Árbitros | **nome completo** | arbitragem é identificada no documento, e a abertura funciona como crédito, à moda de transmissão profissional |
+
+As alternativas oferecidas e recusadas foram "primeiro nome + inicial" e "só o
+papel, sem nome". O argumento a favor delas era que árbitro de base às vezes é
+adolescente e pode não esperar o nome completo num vídeo público — e vídeo
+publicado é irreversível. O dono do projeto pesou isso e decidiu pela
+identificação completa.
+
+Se algum dia a decisão mudar, o ponto de troca é `rotuloPapel` e o cartão de
+abertura em `src/data/abertura.ts` — a API já entrega o nome cru, e encurtar é
+trabalho de apresentação, não de dados.
+
+---
+
 ## Pendências e coisas a verificar
 
 - Se o serviço de restream resolve a chave temporária do Instagram sem passo
