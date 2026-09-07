@@ -26,6 +26,10 @@ vídeo é o próximo passo.
 
 ## Decisões de arquitetura
 
+O registro completo, com o porquê de cada escolha e **das que foram revertidas**,
+está em [`docs/DECISOES.md`](docs/DECISOES.md). Fica no repositório de propósito:
+anotação em máquina de desenvolvedor morre com a máquina. O resumo:
+
 **Overlay em tempo real, Android primeiro.** Transmissão ao vivo é premissa do
 projeto, e numa transmissão não existe "depois": o placar tem de estar no frame
 no instante em que ele sai. Isso descarta gravar limpo e queimar depois como
