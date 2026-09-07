@@ -378,8 +378,14 @@ equivalentes:
 
   **7 minutos e 11 segundos.** O desfazer é escrita que move `atualizado_em` e
   não cria rally nenhum, então o desvio é o tempo desde o último ponto de
-  verdade — que pode ser qualquer coisa. Daí a reconstrução ser a fonte de
-  produção, e não este caminho.
+  verdade — que pode ser qualquer coisa.
+
+  Confirmado de novo minutos depois, por um caminho **independente do
+  desfazer**: cadastrar dois árbitros levou `versao` de 65 a 67 e o campo para
+  `20:06:55`, com o último rally ainda em `19:55:49`. **11 minutos e 5
+  segundos**, e crescendo enquanto ninguém marcar ponto.
+
+  Daí a reconstrução ser a fonte de produção, e não este caminho.
 - `local` — nenhuma escrita conhecida; sobrou o relógio do aparelho.
 
 ---
