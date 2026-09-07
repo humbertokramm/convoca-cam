@@ -292,8 +292,22 @@ são a `sumula_status` e a tela do app do AVF. Essa triplicação já havia prod
 um ponto fantasma no fim do set.
 
 E a nossa cópia estava certa **porque nos avisaram, não porque foi verificada**:
-a súmula de teste tem um rally só, então nenhum teste daqui jamais exercitou um
-desfazer real. O bug teria passado em 19 testes verdes.
+a súmula de teste tinha um rally só, então nenhum teste daqui jamais havia
+exercitado um desfazer real. O bug teria passado em 19 testes verdes.
+
+**VERIFICADO em 2026-09-07** na súmula `246cd719`, com um desfazer de verdade
+(4x4 → 4x3) deixando linha órfã na tabela:
+
+```
+linhas cruas na tabela  : 8   (ordens 1..8)
+cursor (rallies_ativos) : 7
+sumula_timeline entrega : 7   -> ultimo ord7, 4x3
+sumula_status           : 4x3
+reconstrucao daqui      : 8 eventos, terminando em 4x3
+```
+
+A linha `ordem 8` existe e foi descartada por todos. Se o filtro falhasse,
+viria 5x3 — o ponto fantasma. Deixou de ser fé e passou a ser fato.
 
 A migration 126 expôs `sumula_timeline`, e o join e a dobra foram apagados
 daqui. Sobrou uma regra derivada (`alvoDoSet`), e ela sai de `formato`, que é
@@ -353,9 +367,19 @@ Cada carimbo também declara **procedência** (`precisao`), porque não são
 equivalentes:
 
 - `rally` — de `sumula_rallies.criado_em`. Hora do ponto, exata.
-- `escrita` — de `atualizado_em`. Aproximado: desde a 125 esse campo marca a
-  última escrita de qualquer tipo, então um cartão entre o rally e a leitura
-  empurra o carimbo.
+- `escrita` — de `atualizado_em`. Aproximado, e **o erro não tem teto pequeno**.
+  Eu havia estimado que ficaria "limitado ao intervalo de polling"; está
+  verificado que não. Medido em 2026-09-07 na súmula `246cd719`:
+
+  ```
+  atualizado_em             : 20:03:00.677   <- o desfazer
+  ultimo rally ATIVO (ord7) : 19:55:49.725
+  ```
+
+  **7 minutos e 11 segundos.** O desfazer é escrita que move `atualizado_em` e
+  não cria rally nenhum, então o desvio é o tempo desde o último ponto de
+  verdade — que pode ser qualquer coisa. Daí a reconstrução ser a fonte de
+  produção, e não este caminho.
 - `local` — nenhuma escrita conhecida; sobrou o relógio do aparelho.
 
 ---
