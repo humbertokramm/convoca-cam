@@ -10,6 +10,12 @@ const { withProjectBuildGradle } = require('expo/config-plugins');
  * nuvem custa uma das 15 mensais, esse erro sai caro.
  *
  * O plugin e idempotente: roda em todo `prebuild` e nao duplica a linha.
+ *
+ * DESCOBERTA de 2026-09-07: o template do Expo JA traz jitpack, como
+ * `https://www.jitpack.io`. Entao na pratica este plugin e apolice de seguro,
+ * nao necessidade. A checagem procura a URL canonica e nao a substring
+ * "jitpack.io", senao a variante `www` faria o plugin virar no-op silencioso —
+ * e no dia em que o template deixasse de trazer, ninguem entenderia o erro.
  */
 const LINHA = "maven { url 'https://jitpack.io' }";
 
@@ -20,7 +26,7 @@ module.exports = function withRootEncoder(config) {
         'withRootEncoder: build.gradle da raiz nao e groovy; ajuste o plugin.'
       );
     }
-    if (cfg.modResults.contents.includes('jitpack.io')) return cfg;
+    if (cfg.modResults.contents.includes(LINHA)) return cfg;
 
     // Entra no `allprojects { repositories { ... } }`, que e onde o template do
     // Expo declara os repositorios compartilhados.
@@ -29,7 +35,7 @@ module.exports = function withRootEncoder(config) {
       (m) => `${m}\n        ${LINHA}`
     );
 
-    if (!cfg.modResults.contents.includes('jitpack.io')) {
+    if (!cfg.modResults.contents.includes(LINHA)) {
       throw new Error(
         'withRootEncoder: nao achei allprojects.repositories no build.gradle da raiz.'
       );

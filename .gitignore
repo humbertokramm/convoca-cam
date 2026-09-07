@@ -5,3 +5,9 @@ out/
 .burn/
 demo_final.mp4
 frame_*.png
+
+# Gerados pelo `expo prebuild`. Committar isto mudaria o projeto para o fluxo
+# "bare", e o EAS passaria a usar estas pastas em vez de gerar as dele — com
+# sintoma confuso e difícil de rastrear.
+android/
+ios/
