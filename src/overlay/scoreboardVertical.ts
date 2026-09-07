@@ -1,5 +1,5 @@
 import type { Lado, ScoreboardState } from './scoreboard';
-import { COR, FONTE, encurta, escapaXml } from './tema';
+import { baseCentral, COR, FONTE, encurta, escapaXml } from './tema';
 
 /**
  * O placar para video vertical (9:16), pensado para Reels e Stories.
@@ -82,21 +82,19 @@ export function scoreboardVerticalSvg(s: ScoreboardState, opts: VerticalOpts = {
           ? `<circle cx="${x + 30 * u}" cy="${ly + linhaH / 2}" r="${10 * u}" fill="${COR.saque}"/>`
           : ''
       }
-      <text x="${x + 58 * u}" y="${ly + linhaH / 2}" fill="${COR.texto}"
-            font-size="${42 * u}" font-weight="600" dominant-baseline="central"
+      <text x="${x + 58 * u}" y="${baseCentral(ly + linhaH / 2, 42 * u)}" fill="${COR.texto}"
+            font-size="${42 * u}" font-weight="600"
             font-family="${FONTE}">${nomes[lado]}</text>
 
       <rect x="${x + colNome}" y="${ly}" width="${colSets}" height="${linhaH}"
             fill="#000000" fill-opacity="${opacidade * 0.5}"/>
-      <text x="${x + colNome + colSets / 2}" y="${ly + linhaH / 2}" fill="${COR.textoFraco}"
-            font-size="${38 * u}" font-weight="600" text-anchor="middle"
-            dominant-baseline="central" font-family="${FONTE}">${s.setsVencidos[lado]}</text>
+      <text x="${x + colNome + colSets / 2}" y="${baseCentral(ly + linhaH / 2, 38 * u)}" fill="${COR.textoFraco}"
+            font-size="${38 * u}" font-weight="600" text-anchor="middle" font-family="${FONTE}">${s.setsVencidos[lado]}</text>
 
       <rect x="${x + colNome + colSets}" y="${ly}" width="${colPontos}" height="${linhaH}"
             fill="${COR.destaque}" fill-opacity="${opacidade}"/>
-      <text x="${x + colNome + colSets + colPontos / 2}" y="${ly + linhaH / 2}" fill="#101010"
-            font-size="${54 * u}" font-weight="700" text-anchor="middle"
-            dominant-baseline="central" font-family="${FONTE}">${s.pontos[lado]}</text>
+      <text x="${x + colNome + colSets + colPontos / 2}" y="${baseCentral(ly + linhaH / 2, 54 * u)}" fill="#101010"
+            font-size="${54 * u}" font-weight="700" text-anchor="middle" font-family="${FONTE}">${s.pontos[lado]}</text>
     </g>`;
   };
 

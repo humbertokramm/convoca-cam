@@ -10,7 +10,7 @@
  * frame, e o ffmpeg sobrepoe cada um durante a sua janela de tempo.
  */
 
-import { COR, FONTE, encurta, escapaXml } from './tema';
+import { baseCentral, COR, FONTE, encurta, escapaXml } from './tema';
 
 // Reexportados porque `scoreboard` era o endereco original deles.
 export { escapaXml, encurta };
@@ -81,20 +81,20 @@ export function scoreboardSvg(s: ScoreboardState, opts: ScoreboardOpts = {}): st
           ? `<circle cx="${x + 22 * u}" cy="${ly + linhaH / 2}" r="${7 * u}" fill="${COR.saque}"/>`
           : ''
       }
-      <text x="${x + 42 * u}" y="${ly + linhaH / 2}" fill="${COR.texto}"
-            font-size="${30 * u}" font-weight="600" dominant-baseline="central"
+      <text x="${x + 42 * u}" y="${baseCentral(ly + linhaH / 2, 30 * u)}" fill="${COR.texto}"
+            font-size="${30 * u}" font-weight="600"
             font-family="${FONTE}">${nome}</text>
 
       <rect x="${x + colNome}" y="${ly}" width="${colSets}" height="${linhaH}"
             fill="#000000" fill-opacity="${opacidade * 0.5}"/>
-      <text x="${x + colNome + colSets / 2}" y="${ly + linhaH / 2}" fill="${COR.textoFraco}"
-            font-size="${28 * u}" font-weight="600" text-anchor="middle" dominant-baseline="central"
+      <text x="${x + colNome + colSets / 2}" y="${baseCentral(ly + linhaH / 2, 28 * u)}" fill="${COR.textoFraco}"
+            font-size="${28 * u}" font-weight="600" text-anchor="middle"
             font-family="${FONTE}">${s.setsVencidos[lado]}</text>
 
       <rect x="${x + colNome + colSets}" y="${ly}" width="${colPontos}" height="${linhaH}"
             fill="${COR.destaque}" fill-opacity="${opacidade}"/>
-      <text x="${x + colNome + colSets + colPontos / 2}" y="${ly + linhaH / 2}" fill="#101010"
-            font-size="${40 * u}" font-weight="700" text-anchor="middle" dominant-baseline="central"
+      <text x="${x + colNome + colSets + colPontos / 2}" y="${baseCentral(ly + linhaH / 2, 40 * u)}" fill="#101010"
+            font-size="${40 * u}" font-weight="700" text-anchor="middle"
             font-family="${FONTE}">${s.pontos[lado]}</text>
     </g>`;
   };

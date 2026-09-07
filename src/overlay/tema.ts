@@ -40,3 +40,19 @@ export function encurta(nome: string, max = 14): string {
   if (n.length <= max) return n;
   return n.slice(0, max - 1).trimEnd() + '…';
 }
+
+/**
+ * Linha de base para centrar texto verticalmente em `cy`.
+ *
+ * Existe para NAO usar `dominant-baseline="central"`. Aquele atributo funciona
+ * no resvg (desktop) mas tem suporte irregular em renderizadores de SVG para
+ * Android — e o mesmo SVG precisa sair igual nos dois, porque no celular ele e
+ * queimado ao vivo e nao ha como conferir depois.
+ *
+ * A conta: a altura de caixa alta de uma fonte sem serifa fica em torno de 70%
+ * do corpo, entao descer metade disso a partir do centro alinha o miolo do
+ * texto com `cy`.
+ */
+export function baseCentral(cy: number, fontSize: number): number {
+  return cy + fontSize * 0.35;
+}
