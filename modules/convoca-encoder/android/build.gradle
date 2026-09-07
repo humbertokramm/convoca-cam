@@ -1,0 +1,50 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+group = 'net.convoca.cam.encoder'
+version = '0.1.0'
+
+def expoModulesCorePlugin = new File(
+  project(":expo-modules-core").projectDir.absolutePath,
+  "ExpoModulesCorePlugin.gradle"
+)
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+
+android {
+  namespace "net.convoca.cam.encoder"
+  compileSdkVersion rootProject.ext.has('compileSdkVersion') ? rootProject.ext.get('compileSdkVersion') : 35
+
+  defaultConfig {
+    // A RootEncoder aceita 16, mas as fontes extras querem 21+ e o Expo 57 ja
+    // parte de 24. Nao ha ganho em descer.
+    minSdkVersion 24
+    targetSdkVersion rootProject.ext.has('targetSdkVersion') ? rootProject.ext.get('targetSdkVersion') : 35
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  kotlinOptions {
+    jvmTarget = "17"
+  }
+
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  // Encoder com overlay em tempo real, RTMP/RTSP/SRT, e gravacao em arquivo
+  // SIMULTANEA ao stream. O repositorio JitPack e adicionado pelo config
+  // plugin em plugin/withRootEncoder.js — declarar aqui nao basta, porque o
+  // Gradle do projeto resolve repositorios na raiz.
+  implementation "com.github.pedroSG94.RootEncoder:library:2.8.1"
+
+  // Rasteriza o SVG do placar. Ver OverlayRasterizer.kt para o porque de ser
+  // trocavel: esta biblioteca parou em 2019.
+  implementation "com.caverock:androidsvg-aar:1.4"
+}

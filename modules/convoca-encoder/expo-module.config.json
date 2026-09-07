@@ -1,0 +1,6 @@
+{
+  "platforms": ["android"],
+  "android": {
+    "modules": ["net.convoca.cam.encoder.ConvocaEncoderModule"]
+  }
+}

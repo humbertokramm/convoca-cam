@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- As permissoes de camera e microfone vivem no app.json do app, nao aqui:
+       o modulo e biblioteca e nao deve impor permissao a quem o usar. -->
+  <uses-permission android:name="android.permission.INTERNET" />
+</manifest>
