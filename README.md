@@ -24,6 +24,11 @@ vídeo é o próximo passo.
 | Captura de vídeo com overlay em tempo real | **a fazer** |
 | Transmissão RTMP | **a fazer** |
 
+> **A build não passa.** Seis tentativas no EAS falharam antes de instalar
+> dependências, sem log de erro. A ordem das fases exonera este repositório —
+> nada aqui é tocado nesse ponto. Evidência completa e caminhos de saída em
+> [`docs/PROBLEMA-BUILD.md`](docs/PROBLEMA-BUILD.md).
+
 ## Decisões de arquitetura
 
 O registro completo, com o porquê de cada escolha e **das que foram revertidas**,
