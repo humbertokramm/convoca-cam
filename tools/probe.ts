@@ -9,9 +9,13 @@ import { resolveSumulaRef, buildStatusUrl } from '../src/data/convocaClient';
 import { watchSumula } from '../src/data/watchSumula';
 import { derivePhase, classifyEstado, totalPontos } from '../src/core/phase';
 
+// Sumula de teste POS-125. A anterior (64d9b1a6) e pre-125 e por isso
+// esconde a divergencia entre `atualizado_em` e a hora do ultimo rally:
+// nela o backfill fez as duas coincidirem. Fixture que esconde bug e
+// pior que fixture nenhuma.
 const LINK_PADRAO =
   'https://ajbgjlnxfmdqsdzglybd.supabase.co/rest/v1/rpc/sumula_status' +
-  '?p_sumula=64d9b1a6-d6e4-48d2-885c-57172261cc08' +
+  '?p_sumula=246cd719-d3e0-4bcc-9f52-91fe288510f7' +
   '&apikey=sb_publishable_pFXmymWCo-c1h9RsSJGBfw_qmqs5lcd';
 
 const link = process.argv[2] ?? LINK_PADRAO;
