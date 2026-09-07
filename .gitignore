@@ -1,0 +1,7 @@
+node_modules/
+*.log
+.expo/
+out/
+.burn/
+demo_final.mp4
+frame_*.png

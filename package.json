@@ -1,0 +1,29 @@
+{
+  "name": "convoca-cam",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gravacao de partidas com placar do convoca.net queimado no video",
+  "scripts": {
+    "probe": "tsx tools/probe.ts",
+    "typecheck": "node node_modules/typescript/lib/tsc.js --noEmit",
+    "abertura": "tsx tools/abertura.ts",
+    "test": "node --import tsx --test src/**/*.test.ts",
+    "burn": "tsx tools/burn.ts",
+    "burn:demo": "tsx tools/burn.ts --demo --out demo_final.mp4"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "@types/node": "^26.4.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "expo": "^57.0.20",
+    "expo-dev-client": "~57.0.18",
+    "expo-file-system": "~57.0.6",
+    "expo-media-library": "~57.0.4",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3"
+  }
+}
