@@ -35,7 +35,8 @@
           "isAccessMediaLocationEnabled": false
         }
       ],
-      "./modules/convoca-encoder/plugin/withRootEncoder"
+      "./modules/convoca-encoder/plugin/withRootEncoder",
+      "expo-status-bar"
     ],
     "extra": {
       "eas": {
