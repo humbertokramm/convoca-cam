@@ -14,7 +14,11 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.INTERNET"
-      ]
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
     },
     "ios": {
       "bundleIdentifier": "net.convoca.cam",
@@ -41,6 +45,7 @@
         "projectId": "7bdfe07f-0b25-43a0-97d4-078f09594e14"
       }
     },
-    "owner": "convoca.net"
+    "owner": "convoca.net",
+    "icon": "./assets/icon.png"
   }
 }
