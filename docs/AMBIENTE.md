@@ -87,6 +87,33 @@ ANDROID_HOME     D:\devndroid-sdk
 GRADLE_USER_HOME D:\dev\gradle
 ```
 
+### Compile por `D:\git\pessoal\convoca-cam`, NUNCA por `P:\pessoal\convoca-cam`
+
+O `P:` desta máquina é um **mapeamento de `D:\git`** — os mesmos arquivos, duas
+letras de disco. Compilar pelo `P:` faz o Kotlin morrer assim:
+
+```
+java.lang.IllegalArgumentException: this and base files have different roots:
+  D:\git\pessoal\convoca-cam
+ode_modules\expo-constants\...\ConstantsModule.kt
+  e
+  P:\pessoal\convoca-camndroid
+```
+
+O `RelocatableFileToPathConverter` do compilador incremental calcula caminho
+relativo entre os arquivos e a raiz do projeto. Parte dos caminhos chega como
+`D:\...` (via `node_modules` resolvido pelo Gradle) e parte como `P:\...` (a
+raiz que a linha de comando passou), e ele estoura porque as raízes diferem.
+
+O sintoma engana: aparece como `Internal compiler error` em
+`:convoca-encoder:compileDebugKotlin`, o que faz parecer erro no nosso Kotlin.
+**Não é** — o compilador nem chega a analisar o código, morre antes na
+resolução de caminho. Não havia uma única linha `e:` no log.
+
+Se topar com isso de novo: rodar de `D:\git\pessoal\convoca-cam`, e limpar os
+caches incrementais com `./gradlew clean` mais `-Pkotlin.incremental=false`,
+porque os caches escritos na sessão de raiz mista ficam envenenados.
+
 ### Por que fora do C:
 
 O `C:` deste PC tem 195 GB e estava em **100%** de uso. O primeiro build rodou
