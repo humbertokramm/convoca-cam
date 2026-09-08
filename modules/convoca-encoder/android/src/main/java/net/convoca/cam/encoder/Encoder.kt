@@ -5,9 +5,10 @@ import android.graphics.Bitmap
 import android.util.Log
 import android.view.SurfaceView
 import com.pedro.common.ConnectChecker
-import com.pedro.encoder.input.gl.render.filters.object.ImageFilterRender
+// `object` e palavra reservada do Kotlin, e o pacote da biblioteca (Java) se
+// chama literalmente assim — daí as crases.
+import com.pedro.encoder.input.gl.render.filters.`object`.ImageObjectFilterRender
 import com.pedro.library.generic.GenericStream
-import com.pedro.library.util.streamclient.StreamClientListener
 
 /**
  * Dona do encoder. Uma instancia por processo.
@@ -33,7 +34,7 @@ class Encoder(
     private const val TAG = "ConvocaEncoder"
   }
 
-  private val overlay = ImageFilterRender()
+  private val overlay = ImageObjectFilterRender()
 
   private val checker = object : ConnectChecker {
     override fun onConnectionStarted(url: String) = onEvent("conexao_iniciada", url)
@@ -127,7 +128,10 @@ class Encoder(
   fun startRecord(path: String) {
     exigirPreparado()
     if (stream.isRecording) return
-    stream.startRecord(path) { status, _ ->
+    // `RecordController.Listener` e `fun interface` com um metodo so,
+    // `onStatusChange(status)` — um parametro, nao dois. Status possiveis:
+    // STARTED, STOPPED, RECORDING, PAUSED, RESUMED.
+    stream.startRecord(path) { status ->
       onEvent("gravacao", status.name)
     }
   }

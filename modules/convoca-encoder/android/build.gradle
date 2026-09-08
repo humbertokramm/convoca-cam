@@ -1,48 +1,51 @@
-apply plugin: 'com.android.library'
-apply plugin: 'kotlin-android'
+plugins {
+  id 'com.android.library'
+  // Cuida de Kotlin, compileSdk, minSdk e versao de Java.
+  //
+  // Escrever isso a mao com `apply plugin: 'kotlin-android'` mais
+  // `apply from: ExpoModulesCorePlugin.gradle` e o estilo ANTIGO (pre-SDK 52),
+  // e foi o que fez o Kotlin do modulo resolver para 2.1.0 enquanto o resto do
+  // projeto usava 2.3.0. O sintoma: `kotlin.Unit` "compilado com versao
+  // incompativel", e a biblioteca padrao inteira ilegivel — `mapOf`, `also`,
+  // `it` e `runCatching` todos como "Unresolved reference".
+  //
+  // A forma canonica esta em qualquer modulo instalado, por exemplo
+  // node_modules/expo-crypto/android/build.gradle.
+  id 'expo-module-gradle-plugin'
+}
 
 group = 'net.convoca.cam.encoder'
 version = '0.1.0'
 
-def expoModulesCorePlugin = new File(
-  project(":expo-modules-core").projectDir.absolutePath,
-  "ExpoModulesCorePlugin.gradle"
-)
-apply from: expoModulesCorePlugin
-applyKotlinExpoModulesCorePlugin()
-useCoreDependencies()
-
 android {
   namespace "net.convoca.cam.encoder"
-  compileSdkVersion rootProject.ext.has('compileSdkVersion') ? rootProject.ext.get('compileSdkVersion') : 35
 
+  // O `expo-module-gradle-plugin` exige os dois; sem eles a configuracao do
+  // projeto falha com "'android.defaultConfig.versionName' is not defined".
   defaultConfig {
-    // A RootEncoder aceita 16, mas as fontes extras querem 21+ e o Expo 57 ja
-    // parte de 24. Nao ha ganho em descer.
-    minSdkVersion 24
-    targetSdkVersion rootProject.ext.has('targetSdkVersion') ? rootProject.ext.get('targetSdkVersion') : 35
-  }
-
-  compileOptions {
-    sourceCompatibility JavaVersion.VERSION_17
-    targetCompatibility JavaVersion.VERSION_17
-  }
-
-  kotlinOptions {
-    jvmTarget = "17"
-  }
-
-  lintOptions {
-    abortOnError false
+    versionCode 1
+    versionName "0.1.0"
   }
 }
 
 dependencies {
   // Encoder com overlay em tempo real, RTMP/RTSP/SRT, e gravacao em arquivo
-  // SIMULTANEA ao stream. O repositorio JitPack e adicionado pelo config
-  // plugin em plugin/withRootEncoder.js — declarar aqui nao basta, porque o
-  // Gradle do projeto resolve repositorios na raiz.
-  implementation "com.github.pedroSG94.RootEncoder:library:2.8.1"
+  // SIMULTANEA ao stream. O repositorio JitPack ja vem do template do Expo.
+  //
+  // A VERSAO E CASADA COM O KOTLIN DO EXPO, nao e a mais nova de proposito:
+  //
+  //   RootEncoder 2.8.1 -> Kotlin 2.4.10   incompativel
+  //   RootEncoder 2.7.0 -> Kotlin 2.2.21   no limite
+  //   RootEncoder 2.6.0 -> Kotlin 2.1.20   igual a do Expo SDK 57  <-- esta
+  //
+  // O Expo fixa o Kotlin em 2.1.20 (ver o log do ExpoRootProject no build), e
+  // um compilador 2.1.20 le metadata ate 2.2.0. Com a 2.8.1 o stdlib subia
+  // para 2.3.0 e a biblioteca padrao inteira virava ilegivel: `mapOf`, `also`
+  // e `it` apareciam como "Unresolved reference".
+  //
+  // Nesta versao a classe do overlay chama `ImageObjectFilterRender`; o nome
+  // `ImageFilterRender` so existe da 2.8 em diante.
+  implementation "com.github.pedroSG94.RootEncoder:library:2.6.0"
 
   // Rasteriza o SVG do placar. Ver OverlayRasterizer.kt para o porque de ser
   // trocavel: esta biblioteca parou em 2019.
