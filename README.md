@@ -29,6 +29,9 @@ vídeo é o próximo passo.
 > nada aqui é tocado nesse ponto. Evidência completa e caminhos de saída em
 > [`docs/PROBLEMA-BUILD.md`](docs/PROBLEMA-BUILD.md).
 
+O que falta e em que ordem está em [`docs/PLANO.md`](docs/PLANO.md), ordenado
+por risco de perder a partida — não por vistosidade.
+
 ## Decisões de arquitetura
 
 O registro completo, com o porquê de cada escolha e **das que foram revertidas**,
