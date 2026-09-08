@@ -69,6 +69,62 @@ adb pair <ip>:<porta-de-pareamento> <codigo>
   sinal de Wi-Fi fraco ou economia de energia — e vira falha intermitente de
   `adb`.
 
+## Build local no Windows (o caminho que funciona)
+
+Não precisa de WSL nem de Ubuntu. O `eas build --local` é que recusa rodar no
+Windows; o build nativo comum funciona:
+
+```bash
+npx expo prebuild --platform android
+cd android && ./gradlew :app:assembleDebug
+```
+
+Variáveis necessárias — **os caminhos não são os padrões**, ver o porquê abaixo:
+
+```
+JAVA_HOME        C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot
+ANDROID_HOME     D:\devndroid-sdk
+GRADLE_USER_HOME D:\dev\gradle
+```
+
+### Por que fora do C:
+
+O `C:` deste PC tem 195 GB e estava em **100%** de uso. O primeiro build rodou
+10 minutos e morreu com `java.io.IOException: Espaço insuficiente no disco` —
+não por erro de código.
+
+O cache do Gradle cresce vários GB ao longo de um projeto, então deixá-lo no
+disco cheio garantiria o mesmo problema de novo. Cache e SDK foram movidos para
+o volume com espaço.
+
+### JDK: 17, e nenhum outro
+
+A máquina tem o JDK 24 no PATH e o Android Studio traz um JBR 25 embutido. **Os
+dois são novos demais** para o Gradle do React Native 0.86. O 17 é o certo, e
+isso não é chute: a imagem do builder do EAS é
+`ubuntu-26.04-jdk-17-ndk-r27b-sdk-57`.
+
+### Android Studio não é necessário
+
+Foi instalado e **não é usado**. O SDK inteiro se instala por linha de comando:
+
+```bash
+# build atual em https://dl.google.com/android/repository/repository2-3.xml
+curl -sL "https://dl.google.com/android/repository/commandlinetools-win-16111833_latest.zip" -o clt.zip
+# extrair de forma que fique em <sdk>/cmdline-tools/latest/bin/
+sdkmanager "platforms/android-36" "build-tools/36.0.0" "platform-tools"
+```
+
+Duas armadilhas aqui:
+
+- **A URL de download que a página `developer.android.com/studio` informa dá
+  404.** O caminho válido é `dl.google.com/android/repository/`, e o número de
+  build sai do `repository2-3.xml` — não da página.
+- **A sintaxe de pacote mudou de `;` para `/`.** O `sdkmanager` desta versão é
+  um invólucro do CLI novo `android`, e com `platforms;android-36` ele responde
+  "Package not found" para cada pedaço separadamente — o que parece falha de
+  rede e não é.
+
 ## Máquina de desenvolvimento
 
 ```
