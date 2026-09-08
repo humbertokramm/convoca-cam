@@ -33,7 +33,9 @@ export type TipoStatus =
   | 'auth_ok'
   /** Taxa real de upload, uma vez por segundo. O sinal honesto da rede. */
   | 'bitrate'
-  | 'gravacao';
+  | 'gravacao'
+  /** Falha assincrona da gravacao. Sem isto o botao parece sem funcao. */
+  | 'gravacao_erro';
 
 export interface EventoStatus {
   tipo: TipoStatus;
@@ -76,8 +78,14 @@ declare class ConvocaEncoderModule extends NativeModule<Eventos> {
   startStream(endpoint: string): Promise<void>;
   stopStream(): Promise<void>;
 
-  /** Grava em arquivo. Pode rodar junto com a transmissao. */
-  startRecord(path: string): Promise<void>;
+  /**
+   * Grava em arquivo. Pode rodar junto com a transmissao.
+   *
+   * Recebe apenas o NOME do arquivo e devolve o caminho absoluto: quem resolve
+   * o diretorio e o nativo, porque o `MediaMuxer` por tras exige caminho
+   * absoluto e nome solto falha de forma assincrona.
+   */
+  startRecord(nome: string): Promise<string>;
   stopRecord(): Promise<void>;
 
   /**

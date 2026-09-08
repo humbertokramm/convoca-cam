@@ -2,13 +2,16 @@ package net.convoca.cam.encoder
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.os.Environment
 import android.util.Log
 import android.view.SurfaceView
 import com.pedro.common.ConnectChecker
 // `object` e palavra reservada do Kotlin, e o pacote da biblioteca (Java) se
 // chama literalmente assim — daí as crases.
 import com.pedro.encoder.input.gl.render.filters.`object`.ImageObjectFilterRender
+import com.pedro.library.base.recording.RecordController
 import com.pedro.library.generic.GenericStream
+import java.io.File
 
 /**
  * Dona do encoder. Uma instancia por processo.
@@ -122,18 +125,54 @@ class Encoder(
   }
 
   /**
+   * Diretorio das gravacoes.
+   *
+   * `getExternalFilesDir` e area privada do app: nao precisa de permissao de
+   * armazenamento e nao suja a galeria com arquivo pela metade enquanto grava.
+   * Publicar na galeria e passo separado, depois de o arquivo fechar.
+   */
+  private fun pastaDeVideo(): File {
+    val dir = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES)
+      ?: throw IllegalStateException("aparelho sem diretorio de video acessivel")
+    if (!dir.exists() && !dir.mkdirs()) {
+      throw IllegalStateException("nao consegui criar ${dir.absolutePath}")
+    }
+    return dir
+  }
+
+  /**
    * Grava em arquivo. Pode rodar junto com a transmissao — e o motivo de a
    * RootEncoder ter sido escolhida.
+   *
+   * RECEBE NOME, DEVOLVE CAMINHO. O caminho e resolvido aqui de proposito: quem
+   * chamava passava so o nome do arquivo, e o `MediaMuxer` por tras disso exige
+   * caminho ABSOLUTO. Nome solto resolvia contra o diretorio de trabalho do
+   * processo, que nao e gravavel — e a falha vinha assincrona, sem nada na tela.
    */
-  fun startRecord(path: String) {
+  fun startRecord(nome: String): String {
     exigirPreparado()
-    if (stream.isRecording) return
-    // `RecordController.Listener` e `fun interface` com um metodo so,
-    // `onStatusChange(status)` — um parametro, nao dois. Status possiveis:
-    // STARTED, STOPPED, RECORDING, PAUSED, RESUMED.
-    stream.startRecord(path) { status ->
-      onEvent("gravacao", status.name)
-    }
+    if (stream.isRecording) return ""
+
+    val arquivo = File(pastaDeVideo(), nome)
+
+    // Objeto em vez de lambda porque a lambda (SAM) só implementa o metodo
+    // abstrato `onStatusChange`. O `onError` tem implementacao padrao e some —
+    // e era justamente ele que carregava o motivo da falha, silenciosamente
+    // engolido: o botao "Gravar" parecia sem funcao nenhuma.
+    stream.startRecord(
+      arquivo.absolutePath,
+      object : RecordController.Listener {
+        override fun onStatusChange(status: RecordController.Status) {
+          onEvent("gravacao", status.name)
+        }
+
+        override fun onError(e: Exception?) {
+          Log.e(TAG, "erro ao gravar em ${arquivo.absolutePath}", e)
+          onEvent("gravacao_erro", e?.message ?: e?.javaClass?.simpleName ?: "erro ao gravar")
+        }
+      },
+    )
+    return arquivo.absolutePath
   }
 
   fun stopRecord() {

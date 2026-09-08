@@ -84,8 +84,11 @@ class ConvocaEncoderModule : Module() {
       exigir().stopStream()
     }
 
-    AsyncFunction("startRecord") { path: String ->
-      exigir().startRecord(path)
+    // Recebe NOME e devolve o caminho absoluto onde gravou. Resolver o
+    // diretorio e trabalho do nativo: o `MediaMuxer` exige caminho absoluto, e
+    // nome solto falhava de forma assincrona, sem nada aparecer na tela.
+    AsyncFunction("startRecord") { nome: String ->
+      exigir().startRecord(nome)
     }
 
     AsyncFunction("stopRecord") {

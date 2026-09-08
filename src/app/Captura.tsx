@@ -7,9 +7,14 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
-import { ConvocaEncoder, ConvocaEncoderView, type EventoStatus } from '../../modules/convoca-encoder';
+import {
+  ConvocaEncoder,
+  ConvocaEncoderView,
+  type EventoStatus,
+} from '../../modules/convoca-encoder';
 import { resolveSumulaRef, type SumulaRef } from '../data/convocaClient';
 import type { MatchEvent } from '../data/watchSumula';
 import { usePlacar } from './usePlacar';
@@ -36,11 +41,15 @@ const GEOMETRIA: Record<Orientacao, { width: number; height: number; rotation: n
   retrato: { width: 1080, height: 1920, rotation: 90 },
 };
 
+/** Miniatura de canto, ou preview grande. */
+type TamanhoPreview = 'mini' | 'cheio';
+
 export default function Captura() {
   const [linkBruto, setLinkBruto] = useState('');
   const [ref, setRef] = useState<SumulaRef | null>(null);
   const [orientacao, setOrientacao] = useState<Orientacao>('paisagem');
   const [rtmp, setRtmp] = useState('');
+  const [tamanho, setTamanho] = useState<TamanhoPreview>('mini');
 
   const [preparado, setPreparado] = useState(false);
   const [gravando, setGravando] = useState(false);
@@ -50,9 +59,43 @@ export default function Captura() {
   const [status, setStatus] = useState<EventoStatus | null>(null);
   const [bitrateKbps, setBitrateKbps] = useState<number | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
+  const [arquivo, setArquivo] = useState<string | null>(null);
   const [autoLigado, setAutoLigado] = useState(true);
 
   const geo = GEOMETRIA[orientacao];
+  const janela = useWindowDimensions();
+
+  /**
+   * Tamanho do preview na tela, respeitando a proporcao do QUADRO GRAVADO.
+   *
+   * O quadro e 16:9 (ou 9:16) e a tela deste aparelho e 20:9. Deixar o
+   * `SurfaceView` esticar com `MATCH_PARENT` foi o que produziu aquele
+   * retangulo cortado no canto: a imagem saia numa proporcao e a view em outra.
+   *
+   * Aqui largura e altura sao calculadas JUNTAS a partir da proporcao, entao
+   * nao ha como divergirem.
+   */
+  const preview = useMemo(() => {
+    const proporcao = geo.width / geo.height;
+    const margem = 12;
+
+    if (tamanho === 'mini') {
+      // Miniatura de canto: dá para conferir enquadramento sem perder os
+      // controles de vista.
+      const largura = Math.min(janela.width * 0.34, 260);
+      return { largura, altura: largura / proporcao, top: margem, left: janela.width - largura - margem };
+    }
+
+    // Cheio: o maior retangulo da proporcao certa que cabe, encostado no topo
+    // para o painel continuar alcancavel embaixo.
+    const largura = Math.min(janela.width - margem * 2, janela.height * 0.7 * proporcao);
+    return {
+      largura,
+      altura: largura / proporcao,
+      top: margem,
+      left: (janela.width - largura) / 2,
+    };
+  }, [geo.width, geo.height, janela.width, janela.height, tamanho]);
 
   // -------------------------------------------------------------- gravacao
 
@@ -61,8 +104,10 @@ export default function Captura() {
     setOcupado(true);
     try {
       // Nome com o instante: duas partidas no mesmo dia nao podem colidir.
+      // Quem resolve o diretorio e o nativo, e ele devolve o caminho.
       const nome = `convoca-${new Date().toISOString().replace(/[:.]/g, '-')}.mp4`;
-      await ConvocaEncoder.startRecord(nome);
+      const caminho = await ConvocaEncoder.startRecord(nome);
+      setArquivo(caminho);
       setGravando(true);
       setFalha(null);
     } catch (e) {
@@ -141,6 +186,13 @@ export default function Captura() {
       if (ev.tipo === 'conexao_falhou' || ev.tipo === 'auth_erro') {
         setTransmitindo(false);
       }
+      // A gravacao falha de forma ASSINCRONA: o `startRecord` retorna bem e o
+      // muxer quebra depois. Sem tratar isto, o botao parece sem funcao.
+      if (ev.tipo === 'gravacao_erro') {
+        setGravando(false);
+        setFalha(`gravação: ${ev.detalhe ?? 'erro'}`);
+      }
+      if (ev.tipo === 'gravacao' && ev.detalhe === 'STOPPED') setGravando(false);
     });
     return () => sub.remove();
   }, []);
@@ -152,7 +204,7 @@ export default function Captura() {
       setRef(resolveSumulaRef(linkBruto));
       setFalha(null);
     } catch (e) {
-      setFalha((e as Error)?.message ?? 'link invalido');
+      setFalha((e as Error)?.message ?? 'link inválido');
     }
   };
 
@@ -164,7 +216,7 @@ export default function Captura() {
         height: geo.height,
         rotation: geo.rotation,
       });
-      if (!ok) throw new Error('o aparelho recusou a configuracao de video ou audio');
+      if (!ok) throw new Error('o aparelho recusou a configuração de vídeo ou áudio');
       await ConvocaEncoder.startPreview();
       setPreparado(true);
       setFalha(null);
@@ -182,13 +234,13 @@ export default function Captura() {
         await ConvocaEncoder.stopStream();
         setTransmitindo(false);
       } else {
-        if (!rtmp.trim()) throw new Error('informe o endereco RTMP');
+        if (!rtmp.trim()) throw new Error('informe o endereço RTMP');
         await ConvocaEncoder.startStream(rtmp.trim());
         setTransmitindo(true);
       }
       setFalha(null);
     } catch (e) {
-      setFalha(`transmissao: ${(e as Error)?.message}`);
+      setFalha(`transmissão: ${(e as Error)?.message}`);
     } finally {
       setOcupado(false);
     }
@@ -205,12 +257,46 @@ export default function Captura() {
 
   return (
     <View style={s.tela}>
-      <ConvocaEncoderView style={s.preview} />
+      {/* O preview flutua sobre o painel, com tamanho vindo da proporcao do
+          quadro gravado. `box-none` deixa o toque atravessar para o painel,
+          menos onde ha botao. */}
+      <View
+        style={[
+          s.molduraPreview,
+          {
+            width: preview.largura,
+            height: preview.altura,
+            top: preview.top,
+            left: preview.left,
+          },
+        ]}
+        pointerEvents="box-none"
+      >
+        <ConvocaEncoderView style={s.preview} />
+
+        <Pressable
+          onPress={() => setTamanho((t) => (t === 'mini' ? 'cheio' : 'mini'))}
+          style={s.botaoTamanho}
+          hitSlop={10}
+        >
+          <Text style={s.botaoTamanhoTexto}>{tamanho === 'mini' ? '⤢' : '⤡'}</Text>
+        </Pressable>
+
+        {gravando && (
+          <View style={s.selo}>
+            <View style={s.seloPonto} />
+            <Text style={s.seloTexto}>REC</Text>
+          </View>
+        )}
+      </View>
 
       <ScrollView style={s.painel} contentContainerStyle={s.painelConteudo}>
+        {/* Espaco reservado para a miniatura nao cobrir o inicio do painel. */}
+        {tamanho === 'mini' && <View style={{ height: preview.altura - 8 }} />}
+
         {!ref ? (
           <>
-            <Text style={s.rotulo}>Link da súmula</Text>
+            <Text style={s.rotulo}>LINK DA SÚMULA</Text>
             <TextInput
               style={s.entrada}
               value={linkBruto}
@@ -220,7 +306,7 @@ export default function Captura() {
               autoCapitalize="none"
               autoCorrect={false}
             />
-            <Botao titulo="Conectar" onPress={conectar} />
+            <Botao titulo="Conectar" destaque onPress={conectar} />
           </>
         ) : (
           <>
@@ -232,7 +318,7 @@ export default function Captura() {
 
             {!preparado ? (
               <>
-                <Text style={s.rotulo}>Orientação</Text>
+                <Text style={s.rotulo}>ORIENTAÇÃO</Text>
                 <View style={s.linha}>
                   {(['paisagem', 'retrato'] as const).map((o) => (
                     <Botao
@@ -243,7 +329,7 @@ export default function Captura() {
                     />
                   ))}
                 </View>
-                <Botao titulo="Preparar câmera" onPress={preparar} carregando={ocupado} />
+                <Botao titulo="Preparar câmera" destaque onPress={preparar} carregando={ocupado} />
               </>
             ) : (
               <>
@@ -255,7 +341,13 @@ export default function Captura() {
                   onPress={() => void (gravando ? pararGravacao() : iniciarGravacao())}
                 />
 
-                <Text style={s.rotulo}>Endereço RTMP (opcional)</Text>
+                {arquivo && (
+                  <Text style={s.meta} numberOfLines={1}>
+                    {arquivo.split('/').slice(-1)[0]}
+                  </Text>
+                )}
+
+                <Text style={s.rotulo}>ENDEREÇO RTMP (OPCIONAL)</Text>
                 <TextInput
                   style={s.entrada}
                   value={rtmp}
@@ -279,7 +371,7 @@ export default function Captura() {
                   onPress={() => setAutoLigado((v) => !v)}
                 />
 
-                <Text style={s.rotulo}>Código do controle remoto</Text>
+                <Text style={s.rotulo}>CÓDIGO DO CONTROLE REMOTO</Text>
                 <Text style={s.codigo} selectable>
                   {remoto.codigo}
                 </Text>
@@ -292,9 +384,7 @@ export default function Captura() {
               </>
             )}
 
-            {bitrateKbps != null && (
-              <Text style={s.meta}>upload {bitrateKbps} kbps</Text>
-            )}
+            {bitrateKbps != null && <Text style={s.meta}>upload {bitrateKbps} kbps</Text>}
             {status && (
               <Text style={s.meta}>
                 {status.tipo}
@@ -350,22 +440,56 @@ function Botao({
 
 const s = StyleSheet.create({
   tela: { flex: 1, backgroundColor: '#0b1220' },
-  preview: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  painel: {
+
+  molduraPreview: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    maxHeight: '58%',
-    backgroundColor: 'rgba(11,18,32,0.92)',
+    zIndex: 10,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#1e2d47',
+    backgroundColor: '#000',
   },
+  preview: { flex: 1 },
+
+  botaoTamanho: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(11,18,32,0.78)',
+  },
+  botaoTamanhoTexto: { color: '#f4f7fb', fontSize: 16, fontWeight: '700' },
+
+  selo: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,60,60,0.9)',
+  },
+  seloPonto: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#fff' },
+  seloTexto: { color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+
+  painel: { flex: 1 },
   painelConteudo: { padding: 16, gap: 10 },
-  rotulo: { color: '#8fa3bf', fontSize: 12, fontWeight: '600', letterSpacing: 1 },
-  placar: { color: '#f4f7fb', fontSize: 20, fontWeight: '700' },
+
+  rotulo: { color: '#8fa3bf', fontSize: 11, fontWeight: '700', letterSpacing: 1.2 },
+  placar: { color: '#f4f7fb', fontSize: 19, fontWeight: '700' },
   meta: { color: '#8fa3bf', fontSize: 12 },
   codigo: { color: '#ffcc33', fontSize: 13, fontFamily: 'monospace' },
   erro: { color: '#ff8080', fontSize: 13 },
   linha: { flexDirection: 'row', gap: 10 },
+
   entrada: {
     backgroundColor: '#111c30',
     borderRadius: 8,
@@ -381,7 +505,7 @@ const s = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#1e2d47',
-    paddingVertical: 12,
+    paddingVertical: 13,
     alignItems: 'center',
   },
   botaoAtivo: { borderColor: '#ffcc33' },
