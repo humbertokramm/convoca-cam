@@ -17,6 +17,7 @@ import {
 } from '../../modules/convoca-encoder';
 import { resolveSumulaRef, type SumulaRef } from '../data/convocaClient';
 import type { MatchEvent } from '../data/watchSumula';
+import { useGaleria } from './useGaleria';
 import { usePlacar } from './usePlacar';
 import { useRemoto } from './useRemoto';
 
@@ -44,6 +45,15 @@ const GEOMETRIA: Record<Orientacao, { width: number; height: number; rotation: n
 /** Miniatura de canto, ou preview grande. */
 type TamanhoPreview = 'mini' | 'cheio';
 
+/**
+ * Duracao de cada segmento de gravacao.
+ *
+ * Cinco minutos e o meio de campo: a bateria morrendo custa no maximo isso, e
+ * numa partida de 90 minutos dao ~18 arquivos, que ainda e uma lista que se
+ * olha. Um minuto protegeria mais e produziria 90 arquivos e 90 costuras.
+ */
+const SEGUNDOS_POR_SEGMENTO = 300;
+
 export default function Captura() {
   const [linkBruto, setLinkBruto] = useState('');
   const [ref, setRef] = useState<SumulaRef | null>(null);
@@ -64,6 +74,7 @@ export default function Captura() {
 
   const geo = GEOMETRIA[orientacao];
   const janela = useWindowDimensions();
+  const galeria = useGaleria();
 
   /**
    * Tamanho do preview na tela, respeitando a proporcao do QUADRO GRAVADO.
@@ -106,7 +117,7 @@ export default function Captura() {
       // Nome com o instante: duas partidas no mesmo dia nao podem colidir.
       // Quem resolve o diretorio e o nativo, e ele devolve o caminho.
       const nome = `convoca-${new Date().toISOString().replace(/[:.]/g, '-')}.mp4`;
-      const caminho = await ConvocaEncoder.startRecord(nome);
+      const caminho = await ConvocaEncoder.startRecord(nome, SEGUNDOS_POR_SEGMENTO);
       setArquivo(caminho);
       setGravando(true);
       setFalha(null);
@@ -192,10 +203,15 @@ export default function Captura() {
         setGravando(false);
         setFalha(`gravação: ${ev.detalhe ?? 'erro'}`);
       }
-      if (ev.tipo === 'gravacao' && ev.detalhe === 'STOPPED') setGravando(false);
+      // NAO reagir ao `STOPPED` cru: a rotacao de segmento emite ele a cada 5
+      // minutos. Só `gravacao_encerrada` significa que parou de verdade.
+      if (ev.tipo === 'gravacao_encerrada') setGravando(false);
+      // Segmento fechado tem indice completo: publica na hora. Esperar o fim da
+      // partida desfaria a protecao que a segmentacao existe para dar.
+      if (ev.tipo === 'segmento_fechado' && ev.detalhe) galeria.publicar(ev.detalhe);
     });
     return () => sub.remove();
-  }, []);
+  }, [galeria]);
 
   // --------------------------------------------------------------- acoes
 
@@ -346,6 +362,10 @@ export default function Captura() {
                     {arquivo.split('/').slice(-1)[0]}
                   </Text>
                 )}
+                <Text style={s.meta}>
+                  {`segmentos de ${SEGUNDOS_POR_SEGMENTO / 60} min · ${galeria.publicados.length} na galeria`}
+                  {galeria.permitido === false ? ' · sem acesso à galeria' : ''}
+                </Text>
 
                 <Text style={s.rotulo}>ENDEREÇO RTMP (OPCIONAL)</Text>
                 <TextInput
@@ -394,8 +414,8 @@ export default function Captura() {
           </>
         )}
 
-        {(falha ?? placar.erro ?? remoto.erro) && (
-          <Text style={s.erro}>{falha ?? placar.erro ?? remoto.erro}</Text>
+        {(falha ?? placar.erro ?? remoto.erro ?? galeria.erro) && (
+          <Text style={s.erro}>{falha ?? placar.erro ?? remoto.erro ?? galeria.erro}</Text>
         )}
       </ScrollView>
     </View>

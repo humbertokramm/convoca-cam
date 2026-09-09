@@ -12,6 +12,9 @@ import com.pedro.encoder.input.gl.render.filters.`object`.ImageObjectFilterRende
 import com.pedro.library.base.recording.RecordController
 import com.pedro.library.generic.GenericStream
 import java.io.File
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
 /**
  * Dona do encoder. Uma instancia por processo.
@@ -140,6 +143,62 @@ class Encoder(
     return dir
   }
 
+  // ------------------------------------------------------------- gravacao
+
+  private var rotacao: ScheduledExecutorService? = null
+  private var nomeBase = ""
+  private var segundosSegmento = 0
+  private var indiceSegmento = 0
+  private var caminhoAtual = ""
+
+  private fun ouvinteDeGravacao(caminho: String) = object : RecordController.Listener {
+    override fun onStatusChange(status: RecordController.Status) {
+      onEvent("gravacao", status.name)
+    }
+
+    // Objeto em vez de lambda porque a lambda (SAM) só implementa o metodo
+    // abstrato `onStatusChange`. O `onError` tem implementacao padrao e some —
+    // e era justamente ele que carregava o motivo da falha, silenciosamente
+    // engolido: o botao "Gravar" parecia sem funcao nenhuma.
+    override fun onError(e: Exception?) {
+      Log.e(TAG, "erro ao gravar em $caminho", e)
+      onEvent("gravacao_erro", e?.message ?: e?.javaClass?.simpleName ?: "erro ao gravar")
+    }
+  }
+
+  private fun abreSegmento(indice: Int): String {
+    val nome =
+      if (segundosSegmento > 0) String.format("%s-%03d.mp4", nomeBase, indice)
+      else "$nomeBase.mp4"
+
+    val arquivo = File(pastaDeVideo(), nome)
+    caminhoAtual = arquivo.absolutePath
+    stream.startRecord(caminhoAtual, ouvinteDeGravacao(caminhoAtual))
+    return caminhoAtual
+  }
+
+  /**
+   * Fecha o segmento corrente e abre o seguinte.
+   *
+   * `requestKeyframe()` depois de abrir: sem isso o arquivo novo comeca
+   * esperando o proximo quadro-chave natural, e os primeiros segundos ficam
+   * sem imagem decodificavel.
+   */
+  private fun rodaSegmento() {
+    if (!stream.isRecording) return
+    val fechado = caminhoAtual
+
+    stream.stopRecord()
+    // O segmento fechou e tem indice completo: ja pode ser publicado. Avisar
+    // AQUI, e nao no fim da partida, e o que faz a bateria morrer custar so o
+    // segmento em andamento.
+    onEvent("segmento_fechado", fechado)
+
+    indiceSegmento += 1
+    abreSegmento(indiceSegmento)
+    stream.requestKeyframe()
+  }
+
   /**
    * Grava em arquivo. Pode rodar junto com a transmissao — e o motivo de a
    * RootEncoder ter sido escolhida.
@@ -148,35 +207,71 @@ class Encoder(
    * chamava passava so o nome do arquivo, e o `MediaMuxer` por tras disso exige
    * caminho ABSOLUTO. Nome solto resolvia contra o diretorio de trabalho do
    * processo, que nao e gravavel — e a falha vinha assincrona, sem nada na tela.
+   *
+   * SEGMENTACAO. Com `segundosPorSegmento > 0` a gravacao e picada em arquivos
+   * `<nome>-001.mp4`, `-002.mp4`, ...
+   *
+   * Por que isso existe: o MP4 guarda o indice (`moov`) no FIM do arquivo,
+   * escrito quando a gravacao para. Se o processo morrer antes — bateria, o
+   * sistema matando o app, travamento — o arquivo fica sem indice e nao abre em
+   * player nenhum. Nao e video parcial: e video perdido. Em 90 minutos de
+   * partida isso nao e hipotese.
+   *
+   * A RootEncoder 2.6.0 nao tem segmentacao nativa (sem `maxDuration`, sem
+   * `maxFileSize`; aquilo veio na 2.8, incompativel com o Kotlin do Expo),
+   * entao e feita aqui: temporizador que para e recomeca.
+   *
+   * Custo: perde-se uma fracao de segundo na costura entre segmentos. Contra
+   * perder a partida inteira, e troca facil.
    */
-  fun startRecord(nome: String): String {
+  fun startRecord(nome: String, segundosPorSegmento: Int): String {
     exigirPreparado()
     if (stream.isRecording) return ""
 
-    val arquivo = File(pastaDeVideo(), nome)
+    segundosSegmento = segundosPorSegmento.coerceAtLeast(0)
+    nomeBase = nome.removeSuffix(".mp4")
+    indiceSegmento = 1
 
-    // Objeto em vez de lambda porque a lambda (SAM) só implementa o metodo
-    // abstrato `onStatusChange`. O `onError` tem implementacao padrao e some —
-    // e era justamente ele que carregava o motivo da falha, silenciosamente
-    // engolido: o botao "Gravar" parecia sem funcao nenhuma.
-    stream.startRecord(
-      arquivo.absolutePath,
-      object : RecordController.Listener {
-        override fun onStatusChange(status: RecordController.Status) {
-          onEvent("gravacao", status.name)
-        }
+    val primeiro = abreSegmento(indiceSegmento)
 
-        override fun onError(e: Exception?) {
-          Log.e(TAG, "erro ao gravar em ${arquivo.absolutePath}", e)
-          onEvent("gravacao_erro", e?.message ?: e?.javaClass?.simpleName ?: "erro ao gravar")
-        }
-      },
-    )
-    return arquivo.absolutePath
+    if (segundosSegmento > 0) {
+      // Executor proprio em vez do Looper principal: fechar um segmento grava o
+      // indice do arquivo, e nao vale arriscar segurar a interface por isso.
+      rotacao?.shutdownNow()
+      val ex = Executors.newSingleThreadScheduledExecutor()
+      rotacao = ex
+      ex.scheduleAtFixedRate(
+        {
+          runCatching { rodaSegmento() }.onFailure { erro ->
+            Log.e(TAG, "falha ao rodar segmento", erro)
+            onEvent("gravacao_erro", erro.message ?: "falha ao rodar segmento")
+          }
+        },
+        segundosSegmento.toLong(),
+        segundosSegmento.toLong(),
+        TimeUnit.SECONDS,
+      )
+    }
+    return primeiro
   }
 
+  /**
+   * Encerra a gravacao de vez.
+   *
+   * Emite `gravacao_encerrada` ALEM do `segmento_fechado`, porque a rotacao de
+   * segmento tambem produz o `STOPPED` cru da biblioteca — sem um evento que
+   * distinga os dois, a interface acharia que a gravacao parou a cada 5
+   * minutos.
+   */
   fun stopRecord() {
-    if (stream.isRecording) stream.stopRecord()
+    rotacao?.shutdownNow()
+    rotacao = null
+    if (stream.isRecording) {
+      val fechado = caminhoAtual
+      stream.stopRecord()
+      onEvent("segmento_fechado", fechado)
+    }
+    onEvent("gravacao_encerrada", null)
   }
 
   /**
@@ -197,6 +292,8 @@ class Encoder(
   }
 
   fun release() {
+    rotacao?.shutdownNow()
+    rotacao = null
     stopRecord()
     stopStream()
     stopPreview()

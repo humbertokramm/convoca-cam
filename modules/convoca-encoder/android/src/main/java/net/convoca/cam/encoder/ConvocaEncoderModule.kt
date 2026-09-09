@@ -87,8 +87,11 @@ class ConvocaEncoderModule : Module() {
     // Recebe NOME e devolve o caminho absoluto onde gravou. Resolver o
     // diretorio e trabalho do nativo: o `MediaMuxer` exige caminho absoluto, e
     // nome solto falhava de forma assincrona, sem nada aparecer na tela.
-    AsyncFunction("startRecord") { nome: String ->
-      exigir().startRecord(nome)
+    // `segundosPorSegmento` maior que zero pica a gravacao em arquivos
+    // numerados. Ver o porque em Encoder.startRecord: MP4 sem indice e video
+    // perdido, nao video parcial.
+    AsyncFunction("startRecord") { nome: String, segundosPorSegmento: Int ->
+      exigir().startRecord(nome, segundosPorSegmento)
     }
 
     AsyncFunction("stopRecord") {

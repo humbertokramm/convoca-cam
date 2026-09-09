@@ -35,7 +35,21 @@ export type TipoStatus =
   | 'bitrate'
   | 'gravacao'
   /** Falha assincrona da gravacao. Sem isto o botao parece sem funcao. */
-  | 'gravacao_erro';
+  | 'gravacao_erro'
+  /**
+   * Um segmento fechou e tem indice completo — `detalhe` e o caminho dele.
+   *
+   * Chega DURANTE a partida, nao no fim: e o que permite publicar cada pedaco
+   * na hora, para a bateria morrer custando so o segmento em andamento.
+   */
+  | 'segmento_fechado'
+  /**
+   * A gravacao encerrou DE VEZ.
+   *
+   * Necessario porque a rotacao de segmento tambem emite o `STOPPED` cru da
+   * biblioteca: sem distinguir, a interface acharia que parou a cada rotacao.
+   */
+  | 'gravacao_encerrada';
 
 export interface EventoStatus {
   tipo: TipoStatus;
@@ -81,11 +95,16 @@ declare class ConvocaEncoderModule extends NativeModule<Eventos> {
   /**
    * Grava em arquivo. Pode rodar junto com a transmissao.
    *
-   * Recebe apenas o NOME do arquivo e devolve o caminho absoluto: quem resolve
-   * o diretorio e o nativo, porque o `MediaMuxer` por tras exige caminho
-   * absoluto e nome solto falha de forma assincrona.
+   * Recebe apenas o NOME do arquivo e devolve o caminho absoluto do primeiro
+   * segmento: quem resolve o diretorio e o nativo, porque o `MediaMuxer` por
+   * tras exige caminho absoluto e nome solto falha de forma assincrona.
+   *
+   * `segundosPorSegmento` maior que zero pica a gravacao em `<nome>-001.mp4`,
+   * `-002.mp4`, ... O MP4 guarda o indice no FIM do arquivo, entao processo
+   * morto no meio deixa video que nao abre — nao video parcial. Segmentar
+   * limita a perda ao pedaco em andamento.
    */
-  startRecord(nome: string): Promise<string>;
+  startRecord(nome: string, segundosPorSegmento: number): Promise<string>;
   stopRecord(): Promise<void>;
 
   /**

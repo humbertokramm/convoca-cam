@@ -114,6 +114,32 @@ Se topar com isso de novo: rodar de `D:\git\pessoal\convoca-cam`, e limpar os
 caches incrementais com `./gradlew clean` mais `-Pkotlin.incremental=false`,
 porque os caches escritos na sessão de raiz mista ficam envenenados.
 
+### Nunca sirva o APK de dentro de `android/app/build/`
+
+Para instalar no celular sem cabo, o APK e servido por HTTP e alcancado pela
+ponte do `adb` (ver adiante). **Sirva de uma copia, nunca do diretorio de
+saida do build.**
+
+O `python -m http.server` mantem o diretorio de trabalho aberto, e no Windows
+isso o TRAVA. O `expo prebuild` limpa `android/` antes de regenerar, e falha
+pela metade:
+
+```
+✖ Failed to delete android code: EBUSY: resource busy or locked,
+  rmdir '...ndroidppuild\outputspk\debug'
+/usr/bin/bash: line 15: ./gradlew: No such file or directory
+```
+
+O segundo erro e a consequencia ruim: ele ja tinha apagado parte de `android/`,
+inclusive o `gradlew`, e o projeto fica num meio-estado. A saida e matar quem
+segura a porta e rodar o `prebuild` de novo:
+
+```bash
+netstat -ano | grep ":8000.*LISTENING"   # pega o PID
+taskkill //PID <pid> //F
+npx expo prebuild --platform android --no-install
+```
+
 ### Por que fora do C:
 
 O `C:` deste PC tem 195 GB e estava em **100%** de uso. O primeiro build rodou
