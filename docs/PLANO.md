@@ -145,3 +145,57 @@ súmula, antes do jogo — nunca no meio da partida.
 - **O mistério do EAS.** Seis builds falharam antes de instalar dependências,
   sem log. Deixou de ser bloqueio porque o build local funciona; segue
   documentado em [PROBLEMA-BUILD.md](PROBLEMA-BUILD.md).
+
+---
+
+## 7. Entrar na conta e escolher a súmula numa lista
+
+Hoje a súmula entra por link colado. Digitar ou colar UUID no celular é o tipo
+de atrito que empurra alguém a mexer no telefone — exatamente o que o projeto
+existe para evitar.
+
+### Não precisa de nada do dono do schema
+
+A permissão já existe, desde a migration 083:
+
+```sql
+grant select on rede.sumulas to authenticated;
+create policy sumulas_sel on rede.sumulas for select to authenticated
+  using (clube_id in (select rede.meus_clubes()));
+```
+
+As filhas herdam política equivalente, então os nomes dos times vêm na mesma
+consulta:
+
+```
+GET /rest/v1/sumulas?select=id,titulo,estado,criada_em,sumula_equipes(lado,nome)
+    &order=criada_em.desc&limit=30
+    Accept-Profile: rede
+    Authorization: Bearer <access_token>
+```
+
+Login é Supabase Auth padrão — **e-mail e senha, os mesmos do site**
+(`signInWithPassword`). O `@username` é identidade de exibição, não credencial.
+
+`rede.sumulas_da_pessoa` NÃO serve aqui: ela lista só as súmulas em que a pessoa
+foi mesa ou atleta, e quem filma costuma ser comissão — nem uma coisa nem outra.
+
+### Login para ESCOLHER, anônimo para ACOMPANHAR
+
+O token de sessão expira (1h por padrão) e renovar exige rede. O telefone fica
+90 minutos num tripé, no ginásio, com o Wi-Fi que houver. Se a renovação falhar
+no meio do segundo set, **o placar congela e não há ninguém do lado para
+perceber**.
+
+Então o login vale só até a partida começar: entra, lista, toca na súmula, e
+dali em diante o app lê pelas mesmas RPCs públicas de hoje. Nada no caminho
+crítico depende de sessão.
+
+O campo de link continua, e não é redundância: ele cobre gravar jogo que não é
+do próprio clube, que o login não alcança.
+
+### A incógnita que decide o tamanho do trabalho
+
+O site passa `captchaToken` no `signInWithPassword`. **Se o projeto exigir
+captcha no endpoint de auth, app nativo esbarra nisso** — e aí isto deixa de ser
+meia hora de trabalho. Conferir antes de começar.
