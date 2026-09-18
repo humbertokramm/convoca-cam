@@ -54,6 +54,16 @@ type TamanhoPreview = 'mini' | 'cheio';
  */
 const SEGUNDOS_POR_SEGMENTO = 300;
 
+/**
+ * Sobra de gravacao depois de a sumula encerrar.
+ *
+ * Quem anota pode fechar a sumula rapido, com a quadra ainda comemorando. Sem
+ * essa sobra o video termina no ponto final e corta o abraco — que costuma ser a
+ * melhor parte. Meio minuto de ginasio vazio custa pouco; comemoracao cortada
+ * nao volta.
+ */
+const SEGUNDOS_DE_SOBRA_APOS_FIM = 30;
+
 export default function Captura() {
   const [linkBruto, setLinkBruto] = useState('');
   const [ref, setRef] = useState<SumulaRef | null>(null);
@@ -71,6 +81,9 @@ export default function Captura() {
   const [falha, setFalha] = useState<string | null>(null);
   const [arquivo, setArquivo] = useState<string | null>(null);
   const [autoLigado, setAutoLigado] = useState(true);
+  const [pararSozinho, setPararSozinho] = useState(true);
+  /** Segundos restantes da sobra, ou `null` fora dela. Serve de aviso na tela. */
+  const [contagemFinal, setContagemFinal] = useState<number | null>(null);
 
   const geo = GEOMETRIA[orientacao];
   const janela = useWindowDimensions();
@@ -141,6 +154,46 @@ export default function Captura() {
     }
   }, [gravando]);
 
+  // ------------------------------------------- encerrar junto com a sumula
+
+  /**
+   * Contagem regressiva da sobra. Em `ref` e nao em estado porque precisa ser
+   * cancelavel de dentro de callbacks que nao a veem mudar.
+   */
+  const timerFinal = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const cancelarEncerramento = useCallback(() => {
+    if (timerFinal.current) {
+      clearInterval(timerFinal.current);
+      timerFinal.current = null;
+    }
+    setContagemFinal(null);
+  }, []);
+
+  /**
+   * Agenda a parada depois que a sumula encerra.
+   *
+   * Conta na tela em vez de parar calado: se a sumula foi encerrada por engano
+   * — acontece — da tempo de cancelar tocando em qualquer botao de gravacao.
+   */
+  const agendarEncerramento = useCallback(() => {
+    if (timerFinal.current) return;
+    setContagemFinal(SEGUNDOS_DE_SOBRA_APOS_FIM);
+    timerFinal.current = setInterval(() => {
+      setContagemFinal((restante) => {
+        if (restante === null) return null;
+        if (restante > 1) return restante - 1;
+        cancelarEncerramento();
+        void pararGravacao();
+        return null;
+      });
+    }, 1000);
+  }, [cancelarEncerramento, pararGravacao]);
+
+  // Some junto com a tela: temporizador vivo depois da desmontagem pararia uma
+  // gravacao que ja nao e desta tela.
+  useEffect(() => cancelarEncerramento, [cancelarEncerramento]);
+
   // ------------------------------------------------- placar e disparadores
 
   /**
@@ -153,11 +206,18 @@ export default function Captura() {
    */
   const aoEvento = useCallback(
     (ev: MatchEvent) => {
+      // Fim da sumula: agenda a parada. Vem ANTES da guarda de auto-inicio, que
+      // sai cedo justamente quando ja esta gravando — que e quando isto importa.
+      if (ev.tipo === 'fim') {
+        if (pararSozinho && gravando) agendarEncerramento();
+        return;
+      }
+
       if (!autoLigado || gravando || !preparado) return;
       const virouLive = ev.tipo === 'fase' && ev.para === 'live' && ev.de !== 'live';
       if (virouLive || ev.tipo === 'ponto') void iniciarGravacao();
     },
-    [autoLigado, gravando, preparado, iniciarGravacao],
+    [autoLigado, gravando, preparado, iniciarGravacao, pararSozinho, agendarEncerramento],
   );
 
   const placar = usePlacar({ ref, width: geo.width, height: geo.height, onEvento: aoEvento });
@@ -301,7 +361,9 @@ export default function Captura() {
         {gravando && (
           <View style={s.selo}>
             <View style={s.seloPonto} />
-            <Text style={s.seloTexto}>REC</Text>
+            <Text style={s.seloTexto}>
+              {contagemFinal === null ? 'REC' : `ENCERRANDO ${contagemFinal}s`}
+            </Text>
           </View>
         )}
       </View>
@@ -354,7 +416,13 @@ export default function Captura() {
                   destaque={!gravando}
                   perigo={gravando}
                   carregando={ocupado}
-                  onPress={() => void (gravando ? pararGravacao() : iniciarGravacao())}
+                  onPress={() => {
+                    // Tocar no botao durante a contagem e uma decisao humana, e
+                    // ela manda: cancela o encerramento automatico e faz o que
+                    // foi pedido.
+                    cancelarEncerramento();
+                    void (gravando ? pararGravacao() : iniciarGravacao());
+                  }}
                 />
 
                 {arquivo && (
@@ -389,6 +457,17 @@ export default function Captura() {
                   titulo={`Iniciar sozinho no 1º ponto: ${autoLigado ? 'sim' : 'não'}`}
                   ativo={autoLigado}
                   onPress={() => setAutoLigado((v) => !v)}
+                />
+
+                <Botao
+                  titulo={`Parar sozinho ao encerrar a súmula: ${pararSozinho ? 'sim' : 'não'}`}
+                  ativo={pararSozinho}
+                  onPress={() => {
+                    // Desligar durante a contagem tem de cancelar a contagem, e
+                    // nao so impedir a proxima.
+                    if (pararSozinho) cancelarEncerramento();
+                    setPararSozinho((v) => !v);
+                  }}
                 />
 
                 <Text style={s.rotulo}>CÓDIGO DO CONTROLE REMOTO</Text>
