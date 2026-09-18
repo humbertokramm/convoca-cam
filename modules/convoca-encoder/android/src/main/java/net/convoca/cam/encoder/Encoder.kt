@@ -319,27 +319,37 @@ class Encoder(
    */
   fun setOverlaySvg(svg: String) {
     exigirPreparado()
+    ultimoSvg = svg
     val bitmap: Bitmap = rasterizer.render(svg, largura, altura)
-    ultimoOverlay = bitmap
     overlay.setImage(bitmap)
   }
 
   /** Remove o placar sem desmontar o filtro. */
   fun clearOverlay() {
-    ultimoOverlay = null
+    ultimoSvg = null
     overlay.setImage(null)
   }
 
   /**
-   * Ultimo placar desenhado. Guardado como BITMAP, e nao como o SVG de origem:
-   * repor precisa ser instantaneo — acontece no meio de um retorno de segundo
-   * plano — e rasterizar SVG de novo custa alguns quadros.
+   * Ultimo placar desenhado, guardado como SVG — o TEXTO, nao o bitmap.
+   *
+   * E tentador guardar o bitmap pronto para repor sem rasterizar de novo. Nao
+   * da: `setImage` entrega o bitmap ao `ImageStreamObject` da biblioteca, que
+   * chama `Bitmap.recycle()` nele quando o GL e desmontado. O bitmap nao e
+   * nosso depois de entregue.
+   *
+   * Guardar e devolver o mesmo objeto derrubava o app inteiro no primeiro
+   * quadro depois de voltar do segundo plano:
+   * `IllegalArgumentException: bitmap is recycled`, na thread de GL.
    */
-  private var ultimoOverlay: Bitmap? = null
+  private var ultimoSvg: String? = null
 
   private fun reporOverlay() {
-    val b = ultimoOverlay ?: return
-    runCatching { overlay.setImage(b) }
+    val svg = ultimoSvg ?: return
+    // Rasteriza DE NOVO: precisa ser um bitmap novo em folha, porque o anterior
+    // ja foi reciclado pela biblioteca. Custa alguns milissegundos, uma vez por
+    // retorno de segundo plano.
+    runCatching { overlay.setImage(rasterizer.render(svg, largura, altura)) }
       .onFailure { Log.e(TAG, "falha ao repor o placar", it) }
   }
 
@@ -351,7 +361,7 @@ class Encoder(
     stopPreview()
     stream.release()
     GravacaoService.desligar(context)
-    ultimoOverlay = null
+    ultimoSvg = null
     preparado = false
   }
 

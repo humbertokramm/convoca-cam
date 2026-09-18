@@ -475,6 +475,30 @@ layout em CSS; era viewport de OpenGL.
 
 ---
 
+## 22. O bitmap do placar não é nosso depois de entregue
+
+`ImageObjectFilterRender.setImage(bitmap)` repassa o bitmap ao
+`ImageStreamObject` da biblioteca, **que chama `Bitmap.recycle()` nele** quando o
+GL é desmontado. Conferido no bytecode do `encoder-2.6.0.aar`.
+
+Guardar esse mesmo objeto para repor o placar depois derrubava o app inteiro no
+primeiro quadro após voltar do segundo plano:
+
+```
+java.lang.IllegalArgumentException: bitmap is recycled
+  at android.opengl.GLUtils.texImage2D
+  at ImageObjectFilterRender.drawFilter
+```
+
+Então o que se guarda é o **SVG**, o texto, e rasteriza-se de novo na volta. Custa
+alguns milissegundos, uma vez por retorno de segundo plano.
+
+A tentação era guardar o bitmap pronto "para repor sem rasterizar". O
+raciocínio estava certo sobre custo e errado sobre propriedade — e propriedade
+manda.
+
+---
+
 ## Pendências e coisas a verificar
 
 - Se o serviço de restream resolve a chave temporária do Instagram sem passo
