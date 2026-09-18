@@ -1,5 +1,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <!-- As permissoes de camera e microfone vivem no app.json do app, nao aqui:
-       o modulo e biblioteca e nao deve impor permissao a quem o usar. -->
+       o modulo e biblioteca e nao deve impor permissao a quem o usar. As de
+       servico em primeiro plano estao la pelo mesmo motivo. -->
   <uses-permission android:name="android.permission.INTERNET" />
+
+  <application>
+    <!-- O servico, ao contrario das permissoes, e declarado AQUI: ele e codigo
+         do modulo, e quem instala o modulo instala junto a capacidade de gravar
+         com a tela apagada.
+
+         O `foregroundServiceType` e o que autoriza camera e microfone a
+         continuarem em segundo plano. No Android 14+ a chamada de
+         `startForeground` e RECUSADA com excecao se o tipo faltar. -->
+    <service
+      android:name="net.convoca.cam.encoder.GravacaoService"
+      android:exported="false"
+      android:foregroundServiceType="camera|microphone" />
+  </application>
 </manifest>

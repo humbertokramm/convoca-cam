@@ -20,8 +20,18 @@ class ConvocaEncoderModule : Module() {
   private var encoder: Encoder? = null
   private var view: ConvocaEncoderView? = null
 
-  /** Preview pedido antes de a superficie existir — reaplicado quando ela vier. */
-  private var previewPendente = false
+  /**
+   * O preview DEVE estar no ar.
+   *
+   * Nao e o mesmo que "esta no ar". A superficie morre e renasce sozinha — app
+   * pro fundo, tela apagada, React remontando a arvore — e o JavaScript nao
+   * fica sabendo. Guardar a INTENCAO aqui e o que permite religar o preview
+   * quando a superficie voltar.
+   *
+   * Sem isto, sair do app e voltar deixava tela preta e sem placar, com o app
+   * ainda dizendo que gravava. E gravava mesmo: preto.
+   */
+  private var previewDesejado = false
 
   override fun definition() = ModuleDefinition {
     Name("ConvocaEncoder")
@@ -60,19 +70,16 @@ class ConvocaEncoderModule : Module() {
     }
 
     AsyncFunction("startPreview") {
+      previewDesejado = true
       val v = view
-      if (v == null || !v.superficiePronta) {
-        // Nao e erro: a view pode ainda estar montando. Guarda o pedido e
-        // aplica quando `surfaceCreated` chegar — pedir preview cedo demais
-        // resulta em tela preta sem mensagem nenhuma.
-        previewPendente = true
-      } else {
-        exigir().startPreview(v.surfaceView)
-      }
+      // Se a superficie ainda nao existe nao e erro: a view pode estar
+      // montando. `previewDesejado` segura o pedido, e o `surfaceCreated`
+      // aplica. Pedir preview cedo demais da tela preta sem mensagem nenhuma.
+      if (v != null && v.superficiePronta) exigir().startPreview(v.surfaceView)
     }
 
     AsyncFunction("stopPreview") {
-      previewPendente = false
+      previewDesejado = false
       exigir().stopPreview()
     }
 
@@ -124,12 +131,27 @@ class ConvocaEncoderModule : Module() {
 
       OnViewDidUpdateProps { v ->
         view = v
+
         v.onSurfaceReady = { pronta ->
           sendEvent("onSurface", mapOf("pronta" to pronta))
-          if (pronta && previewPendente) {
-            previewPendente = false
-            runCatching { encoder?.startPreview(v.surfaceView) }
+          if (pronta) {
+            // Volta do fundo, ou primeira montagem: religa se era pra estar no ar.
+            if (previewDesejado) runCatching { encoder?.startPreview(v.surfaceView) }
+              .onFailure { sendEvent("onStatus", mapOf("tipo" to "preview_erro", "detalhe" to it.message)) }
+          } else {
+            // Solta a superficie AQUI, sincronamente, ainda dentro do
+            // `surfaceDestroyed`. Depois que ele retorna a superficie e
+            // invalida, e continuar desenhando nela derruba a thread de GL —
+            // levando o encoder junto, sem erro visivel.
+            //
+            // `previewDesejado` NAO e limpo: quem manda parar de verdade e o
+            // JavaScript, nao o sistema tirando a janela da frente.
+            runCatching { encoder?.stopPreview() }
           }
+        }
+
+        v.onSurfaceResized = { largura, altura ->
+          encoder?.redimensionarPreview(largura, altura)
         }
       }
     }

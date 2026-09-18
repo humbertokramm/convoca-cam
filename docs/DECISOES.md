@@ -417,6 +417,64 @@ trabalho de apresentação, não de dados.
 
 ---
 
+## 19. Serviço em primeiro plano não é refinamento, é o alicerce
+
+Desde o Android 9 o sistema **desconecta a câmera** de qualquer app que saia da
+frente. Basta a tela apagar.
+
+O app rodou semanas sem serviço em primeiro plano e o defeito passou despercebido
+porque ele **não aparece**: a câmera cai, o encoder segue girando, o arquivo segue
+crescendo — com preto dentro. A tela continua dizendo "gravando". Só depois do jogo
+alguém descobre que são 90 minutos de nada.
+
+E o cenário deste projeto é justamente esse: telefone no tripé, sozinho, tela
+apagando, ninguém do lado para perceber.
+
+`GravacaoService` é do tipo `camera|microphone` — no Android 14+ `startForeground`
+é **recusado com exceção** se o tipo faltar. Vai junto um `PARTIAL_WAKE_LOCK`,
+porque de tela apagada o sistema pode suspender a CPU e parar o encoder no meio.
+
+`START_NOT_STICKY` de propósito: recriar o serviço depois de o app morrer daria
+um serviço vivo sem encoder, que é pior que serviço nenhum — mente para quem
+está olhando.
+
+---
+
+## 20. Quem manda no preview é o nativo, não o JavaScript
+
+A superfície de desenho morre e renasce sozinha: app para o fundo, tela apagando,
+React remontando a árvore. O JavaScript não fica sabendo de nada disso.
+
+Antes, o `surfaceDestroyed` só avisava o JS — que não fazia nada com o aviso. Duas
+consequências:
+
+1. Ninguém religava o preview na volta. Tela preta, sem placar.
+2. Pior: o contrato do `SurfaceHolder.Callback` exige **parar de desenhar antes de
+   `surfaceDestroyed` retornar**. Seguir desenhando numa superfície morta derruba a
+   thread de GL, e o encoder vai junto, sem erro visível.
+
+Agora o módulo guarda a INTENÇÃO (`previewDesejado`) em vez do estado. Soltar a
+superfície é síncrono, dentro do callback; religar acontece no `surfaceCreated`.
+E o bitmap do placar é reposto na volta, porque ele vive numa textura de GL que
+some com o contexto.
+
+Só o JavaScript limpa `previewDesejado`. O sistema tirando a janela da frente não
+é ordem de parar.
+
+---
+
+## 21. O viewport de GL não acompanha a view sozinho
+
+A RootEncoder fixa a resolução do preview no `startPreview` e não olha mais. A
+`SurfaceView` é `MATCH_PARENT` e cresce junto com o container, então ao expandir a
+miniatura a imagem continuava desenhada no tamanho antigo, encolhida no canto de um
+retângulo preto do tamanho novo.
+
+Corrigido com `setPreviewResolution` no `surfaceChanged`. O sintoma parecia erro de
+layout em CSS; era viewport de OpenGL.
+
+---
+
 ## Pendências e coisas a verificar
 
 - Se o serviço de restream resolve a chave temporária do Instagram sem passo

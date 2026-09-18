@@ -33,6 +33,17 @@ class ConvocaEncoderView(context: Context, appContext: AppContext) :
   /** Avisado quando a superficie fica utilizavel, e quando deixa de ser. */
   var onSurfaceReady: ((pronta: Boolean) -> Unit)? = null
 
+  /**
+   * Avisado quando a superficie muda de TAMANHO.
+   *
+   * Existe porque o preview alterna entre miniatura de canto e tela grande. A
+   * `SurfaceView` acompanha o container sozinha (MATCH_PARENT), mas a
+   * RootEncoder fixa o viewport de GL no `startPreview` e nao descobre que a
+   * view cresceu — a imagem continuava desenhada no tamanho antigo, encolhida
+   * no canto de um retangulo preto.
+   */
+  var onSurfaceResized: ((largura: Int, altura: Int) -> Unit)? = null
+
   private var pronta = false
 
   val superficiePronta: Boolean get() = pronta
@@ -44,8 +55,14 @@ class ConvocaEncoderView(context: Context, appContext: AppContext) :
         onSurfaceReady?.invoke(true)
       }
 
-      override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int) = Unit
+      override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int) {
+        onSurfaceResized?.invoke(w, h)
+      }
 
+      // CONTRATO DO ANDROID: depois que este metodo retorna, a superficie deixa
+      // de valer. Quem desenha nela precisa parar AQUI DENTRO, de forma
+      // sincrona. Seguir desenhando numa superficie morta derruba a thread de
+      // GL — e o encoder vai junto, sem erro nenhum na tela.
       override fun surfaceDestroyed(holder: SurfaceHolder) {
         pronta = false
         onSurfaceReady?.invoke(false)

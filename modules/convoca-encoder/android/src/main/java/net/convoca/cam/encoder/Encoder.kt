@@ -112,19 +112,51 @@ class Encoder(
   fun startPreview(surface: SurfaceView) {
     exigirPreparado()
     if (!stream.isOnPreview) stream.startPreview(surface)
+    // O bitmap do placar vive numa textura de GL. Quando o preview cai — app
+    // pro fundo, tela apagada — o contexto pode ir junto e a textura some.
+    // Repor aqui e o que impede a mascara de voltar vazia.
+    reporOverlay()
   }
 
   fun stopPreview() {
     if (stream.isOnPreview) stream.stopPreview()
   }
 
+  /**
+   * Ajusta o viewport de GL ao novo tamanho da superficie.
+   *
+   * Sem isto o preview segue desenhado no tamanho de quando comecou: ao
+   * expandir a miniatura, a imagem ficava encolhida no canto de um retangulo
+   * preto do tamanho novo.
+   */
+  fun redimensionarPreview(largura: Int, altura: Int) {
+    if (!preparado || largura <= 0 || altura <= 0) return
+    runCatching { stream.getGlInterface().setPreviewResolution(largura, altura) }
+      .onFailure { Log.e(TAG, "falha ao redimensionar preview", it) }
+  }
+
   fun startStream(endpoint: String) {
     exigirPreparado()
-    if (!stream.isStreaming) stream.startStream(endpoint)
+    if (!stream.isStreaming) {
+      stream.startStream(endpoint)
+      GravacaoService.ligar(context)
+    }
   }
 
   fun stopStream() {
     if (stream.isStreaming) stream.stopStream()
+    atualizarServico()
+  }
+
+  /**
+   * Liga o servico enquanto houver captura, desliga quando nao houver.
+   *
+   * O servico e o que mantem a camera viva em segundo plano; deixar ele ligado
+   * a toa gasta bateria e planta uma notificacao permanente sem motivo.
+   */
+  private fun atualizarServico() {
+    if (stream.isRecording || stream.isStreaming) GravacaoService.ligar(context)
+    else GravacaoService.desligar(context)
   }
 
   /**
@@ -233,6 +265,10 @@ class Encoder(
     indiceSegmento = 1
 
     val primeiro = abreSegmento(indiceSegmento)
+    // Antes de qualquer outra coisa: sem o servico em primeiro plano o Android
+    // desconecta a camera assim que o app sair da frente, e o arquivo continua
+    // crescendo com preto dentro.
+    GravacaoService.ligar(context)
 
     if (segundosSegmento > 0) {
       // Executor proprio em vez do Looper principal: fechar um segmento grava o
@@ -271,6 +307,7 @@ class Encoder(
       stream.stopRecord()
       onEvent("segmento_fechado", fechado)
     }
+    atualizarServico()
     onEvent("gravacao_encerrada", null)
   }
 
@@ -283,12 +320,27 @@ class Encoder(
   fun setOverlaySvg(svg: String) {
     exigirPreparado()
     val bitmap: Bitmap = rasterizer.render(svg, largura, altura)
+    ultimoOverlay = bitmap
     overlay.setImage(bitmap)
   }
 
   /** Remove o placar sem desmontar o filtro. */
   fun clearOverlay() {
+    ultimoOverlay = null
     overlay.setImage(null)
+  }
+
+  /**
+   * Ultimo placar desenhado. Guardado como BITMAP, e nao como o SVG de origem:
+   * repor precisa ser instantaneo — acontece no meio de um retorno de segundo
+   * plano — e rasterizar SVG de novo custa alguns quadros.
+   */
+  private var ultimoOverlay: Bitmap? = null
+
+  private fun reporOverlay() {
+    val b = ultimoOverlay ?: return
+    runCatching { overlay.setImage(b) }
+      .onFailure { Log.e(TAG, "falha ao repor o placar", it) }
   }
 
   fun release() {
@@ -298,6 +350,8 @@ class Encoder(
     stopStream()
     stopPreview()
     stream.release()
+    GravacaoService.desligar(context)
+    ultimoOverlay = null
     preparado = false
   }
 
