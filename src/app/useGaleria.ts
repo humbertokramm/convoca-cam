@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import * as MediaLibrary from 'expo-media-library';
+import { Asset, requestPermissionsAsync } from 'expo-media-library';
 
 /**
  * Publica os segmentos gravados na galeria do aparelho.
@@ -14,8 +14,12 @@ import * as MediaLibrary from 'expo-media-library';
  * acabando custa apenas o pedaco em andamento — o resto ja esta na galeria,
  * fora do alcance do app.
  *
- * Publicar no fim seria mais simples e desfaria justamente a protecao que a
- * segmentacao existe para dar.
+ * `Asset.create` E NAO `createAssetAsync`. No expo-media-library 57 o
+ * `createAssetAsync` foi aposentado de um jeito cruel: a funcao ainda existe,
+ * ainda tem tipo, ainda compila — e a PRIMEIRA LINHA do corpo dela lanca
+ * excecao. Toda publicacao falhava, e como o aviso na tela era o ultimo de uma
+ * fila de `??`, nada aparecia: quinze arquivos gravados, zero publicados,
+ * nenhum sinal.
  */
 
 export interface Galeria {
@@ -44,12 +48,15 @@ export function useGaleria(): Galeria {
       try {
         // `writeOnly`: o app so precisa ESCREVER na galeria. Pedir leitura
         // daria acesso a todas as fotos do aparelho sem necessidade nenhuma.
-        const r = await MediaLibrary.requestPermissionsAsync(true);
-        if (vivo) setPermitido(r.granted);
+        const r = await requestPermissionsAsync(true);
+        if (vivo) {
+          setPermitido(r.granted);
+          if (!r.granted) setErro('sem permissão para escrever na galeria');
+        }
       } catch (e) {
         if (vivo) {
           setPermitido(false);
-          setErro((e as Error)?.message ?? 'falha ao pedir acesso à galeria');
+          setErro(`permissão da galeria: ${(e as Error)?.message ?? 'falhou'}`);
         }
       }
     })();
@@ -58,29 +65,29 @@ export function useGaleria(): Galeria {
     };
   }, []);
 
-  const publicar = useCallback(
-    (caminho: string) => {
-      if (!caminho || vistos.current.has(caminho)) return;
-      vistos.current.add(caminho);
+  const publicar = useCallback((caminho: string) => {
+    if (!caminho || vistos.current.has(caminho)) return;
+    vistos.current.add(caminho);
 
-      void (async () => {
-        try {
-          // `createAssetAsync` copia para a galeria; o original fica na area do
-          // app. Nao apagamos: se a copia falhar depois, o material ainda
-          // existe em algum lugar.
-          await MediaLibrary.createAssetAsync(caminho);
-          setPublicados((p) => [...p, caminho]);
-          setErro(null);
-        } catch (e) {
-          // Falha de publicacao NAO derruba a gravacao: o arquivo continua na
-          // pasta do app e pode ser publicado ou copiado depois.
-          setErro(`galeria: ${(e as Error)?.message ?? 'falha ao publicar'}`);
-          vistos.current.delete(caminho);
-        }
-      })();
-    },
-    [],
-  );
+    void (async () => {
+      try {
+        // Copia para a galeria; o original fica na area do app. Nao apagamos:
+        // se a copia falhar depois, o material ainda existe em algum lugar.
+        await Asset.create(caminho);
+        setPublicados((p) => [...p, caminho]);
+        setErro(null);
+      } catch (e) {
+        const msg = (e as Error)?.message ?? 'falha ao publicar';
+        // Vai tambem para o console: esta falha ja passou despercebida uma vez
+        // por so existir num canto da tela.
+        console.error(`galeria: nao consegui publicar ${caminho}`, e);
+        setErro(`galeria: ${msg}`);
+        // Falha de publicacao NAO derruba a gravacao: o arquivo continua na
+        // pasta do app. Soltar o caminho permite uma nova tentativa.
+        vistos.current.delete(caminho);
+      }
+    })();
+  }, []);
 
   return { permitido, publicados, erro, publicar };
 }

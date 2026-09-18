@@ -499,6 +499,29 @@ manda.
 
 ---
 
+## 23. Função aposentada que compila e estoura
+
+No `expo-media-library` 57, `createAssetAsync` foi aposentada assim:
+
+```js
+export async function createAssetAsync(localUri, album) {
+    throw errorOnLegacyMethodUse('createAssetAsync');
+}
+```
+
+A função existe, tem tipo, passa no `tsc`, e a primeira linha do corpo lança. O
+substituto é `Asset.create(caminho)`.
+
+Quinze gravações foram para a pasta do app e nenhuma para a galeria. O sinal
+existia — `galeria.erro` — mas era o **último de uma fila de `??`**, atrás de
+`falha`, `placar.erro` e `remoto.erro`. Qualquer outro aviso o engolia.
+
+A lição não é sobre a biblioteca, é sobre a fila: `a ?? b ?? c ?? d` numa tela de
+erro não mostra erros, mostra **um** erro. Aviso de subsistema independente vai em
+linha própria, e também para o console — quem olha logcat depois precisa achar.
+
+---
+
 ## Pendências e coisas a verificar
 
 - Se o serviço de restream resolve a chave temporária do Instagram sem passo

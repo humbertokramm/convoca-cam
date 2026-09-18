@@ -493,9 +493,14 @@ export default function Captura() {
           </>
         )}
 
-        {(falha ?? placar.erro ?? remoto.erro ?? galeria.erro) && (
-          <Text style={s.erro}>{falha ?? placar.erro ?? remoto.erro ?? galeria.erro}</Text>
+        {(falha ?? placar.erro ?? remoto.erro) && (
+          <Text style={s.erro}>{falha ?? placar.erro ?? remoto.erro}</Text>
         )}
+
+        {/* Em linha propria, e nao no fim de uma fila de `??`. Ficou meses
+            escondido atras de qualquer outro aviso: quinze gravacoes foram
+            para a pasta do app e nenhuma para a galeria, sem sinal nenhum. */}
+        {galeria.erro && <Text style={s.erro}>{galeria.erro}</Text>}
       </ScrollView>
     </View>
   );
